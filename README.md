@@ -19,45 +19,43 @@ cargo add session-keys --features no-entrypoint
 
 ## Usage 
 
-
 1. Importing session-keys:
-   ```rust
+```rust
    use session_keys::{SessionError, SessionToken, session_auth_or, Session};
-   ```
-   This line imports the necessary components from the session-keys crate.
+```
+This line imports the necessary components from the session-keys crate.
 
 2. Deriving the Session trait:
-   ```rust
+```rust
    #[derive(Accounts, Session)]
-  pub struct Increment<'info> {
-    ...
-  )
-  ```
-  The `Session` trait is derived on the `Increment` struct, enabling session functionality.
+   pub struct Increment<'info> {
+     ...
+   }
+```
+The `Session` trait is derived on the `Increment` struct, enabling session functionality.
 
 3. Defining the session token account:
-  ```rust
-  #[session(
-      signer = signer,
-      authority = counter.authority.key() 
-  )]
-  pub session_token: Option<Account<'info, SessionToken>>,
-  ```
-  This defines an optional `SessionToken` account, specifying the signer and authority for the session.
-  session_token.authority - account which created the session token
-  counter.authority.key() - account which created the counter
-  authority condition checks if the session token is created by the same user as counter
+```rust
+   #[session(
+       signer = signer,
+       authority = counter.authority.key() 
+   )]
+   pub session_token: Option<Account<'info, SessionToken>>,
+```
+This defines an optional `SessionToken` account, specifying the signer and authority for the session.
+- session_token.authority: account which created the session token
+- counter.authority.key(): account which created the counter
+The authority condition checks if the session token is created by the same user as the counter.
 
 4. Using the `session_auth_or` macro:
-   ```rust
+```rust
    #[session_auth_or(
        ctx.accounts.counter.authority.key() == ctx.accounts.signer.key(),
        SessionError::InvalidToken
    )]
-   ```
-   This macro is applied to the `increment` function. 
-   It checks for a valid session token, or if not present, verifies that the signer is the counter's authority.
-
+```
+This macro is applied to the `increment` function. 
+It checks for a valid session token, or if not present, verifies that the signer is the counter's authority.
 
 ## Full Example
 
@@ -199,7 +197,7 @@ describe("counter_session", () => {
     expect(counterAccount.count).to.equal(2);
   });
 
-  it("it fails to increment without wrong session token owner", async () => {
+  it("fails to increment with wrong session token owner", async () => {
     const user = anchor.web3.Keypair.generate();
     await topUp(user);
   
@@ -213,16 +211,36 @@ describe("counter_session", () => {
     try {
       await increment_with_session(counterPDA, sessionSigner, sessionToken);
       assert(false, "Expected to fail");
-      
     } catch (err) {}
 
     const counterData = await program.account.counter.fetch(counterPDA);
     assert(counterData.count.eq(new anchor.BN(0)));
   });
-
 });
 ```
 
 This test suite demonstrates initializing the counter, incrementing it without a session, creating a session token, and then incrementing with the session token.
-Last test is important, as here we make sure that only the owner of the counter can increment it.
+The last test is important, as it ensures that only the owner of the counter can increment it.
 
+## Testing locally
+
+To test it locally with `solana-test-validator`, you need to start it with the session keys program and account. 
+
+1. Make sure your Solana CLI points to DEVNET:
+```
+solana config set --url https://api.devnet.solana.com
+```
+
+2. Dump Session Keys program to local file:
+```
+solana program dump KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5 ./session-keys.so
+```
+
+3. Start solana-test-validator with session keys program and account:
+> `-r` - reset the ledger to genesis 
+> `-ud` - URL for Solana's JSON RPC or moniker (-ud = DEVNET)
+> `--clone` - Copy an account from the cluster 
+> `--bpf-program` - add a SBF program to the genesis configuration
+```
+solana-test-validator -ud --clone KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5 -r --bpf-program KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5 ./session-keys.so
+```
